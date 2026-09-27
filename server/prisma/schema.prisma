@@ -1,0 +1,798 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model activity_logs {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspace_id String     @db.Uuid
+  project_id   String?    @db.Uuid
+  user_id      String?    @db.Uuid
+  action       String     @db.VarChar(100)
+  entity_type  String     @db.VarChar(50)
+  entity_id    String?    @db.Uuid
+  metadata     Json?
+  created_at   DateTime   @default(now()) @db.Timestamptz(6)
+  projects     projects?  @relation(fields: [project_id, workspace_id], references: [id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+  users        users?     @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  workspaces   workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([project_id, created_at], map: "idx_activity_logs_project_created")
+  @@index([workspace_id, created_at], map: "idx_activity_logs_workspace_created")
+}
+
+model ai_conversations {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id   String        @db.Uuid
+  workspace_id String        @db.Uuid
+  user_id      String        @db.Uuid
+  title        String?       @db.VarChar(200)
+  created_at   DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime      @default(now()) @db.Timestamptz(6)
+  projects     projects      @relation(fields: [project_id, workspace_id], references: [id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+  users        users         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  ai_messages  ai_messages[]
+
+  @@index([project_id, updated_at], map: "idx_ai_conversations_project_updated")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model ai_messages {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_id  String           @db.Uuid
+  role             String
+  content          String
+  model_name       String?          @db.VarChar(100)
+  input_tokens     Int?
+  output_tokens    Int?
+  created_at       DateTime         @default(now()) @db.Timestamptz(6)
+  ai_conversations ai_conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([conversation_id, created_at], map: "idx_ai_messages_conversation_created")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model automation_actions {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  automation_id String      @db.Uuid
+  action_type   String      @db.VarChar(100)
+  parameters    Json?
+  position      Int         @default(1)
+  created_at    DateTime    @default(now()) @db.Timestamptz(6)
+  automations   automations @relation(fields: [automation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([automation_id, position])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model automation_conditions {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  automation_id   String      @db.Uuid
+  field_name      String      @db.VarChar(100)
+  operator        String      @db.VarChar(30)
+  value           Json?
+  condition_group Int         @default(1)
+  created_at      DateTime    @default(now()) @db.Timestamptz(6)
+  automations     automations @relation(fields: [automation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model automation_runs {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  automation_id String      @db.Uuid
+  status        String      @default("RUNNING")
+  trigger_data  Json?
+  error_message String?
+  started_at    DateTime    @default(now()) @db.Timestamptz(6)
+  completed_at  DateTime?   @db.Timestamptz(6)
+  automations   automations @relation(fields: [automation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([automation_id, started_at], map: "idx_automation_runs_automation_started")
+}
+
+model automations {
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id            String                  @db.Uuid
+  workspace_id          String                  @db.Uuid
+  name                  String                  @db.VarChar(150)
+  description           String?
+  trigger_type          String                  @db.VarChar(100)
+  is_active             Boolean                 @default(true)
+  created_by            String                  @db.Uuid
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime                @default(now()) @db.Timestamptz(6)
+  automation_actions    automation_actions[]
+  automation_conditions automation_conditions[]
+  automation_runs       automation_runs[]
+  users                 users                   @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  projects              projects                @relation(fields: [project_id, workspace_id], references: [id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([project_id, name])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model calendar_events {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspace_id       String               @db.Uuid
+  project_id         String?              @db.Uuid
+  created_by         String               @db.Uuid
+  title              String               @db.VarChar(200)
+  description        String?
+  starts_at          DateTime             @db.Timestamptz(6)
+  ends_at            DateTime             @db.Timestamptz(6)
+  location           String?
+  recurrence_rule    String?
+  created_at         DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime             @default(now()) @db.Timestamptz(6)
+  users              users                @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  projects           projects?            @relation(fields: [project_id, workspace_id], references: [id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+  workspaces         workspaces           @relation(fields: [workspace_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  event_participants event_participants[]
+
+  @@index([project_id, starts_at], map: "idx_calendar_events_project_starts")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model event_participants {
+  event_id        String          @db.Uuid
+  user_id         String          @db.Uuid
+  response_status String          @default("INVITED")
+  responded_at    DateTime?       @db.Timestamptz(6)
+  created_at      DateTime        @default(now()) @db.Timestamptz(6)
+  calendar_events calendar_events @relation(fields: [event_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users           users           @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([event_id, user_id])
+  @@index([user_id], map: "idx_event_participants_user_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model github_commits {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  repository_id       String              @db.Uuid
+  github_sha          String              @db.VarChar(40)
+  author_name         String?             @db.VarChar(255)
+  author_email        String?             @db.VarChar(255)
+  message             String
+  branch_name         String?             @db.VarChar(255)
+  commit_url          String?
+  additions           Int                 @default(0)
+  deletions           Int                 @default(0)
+  committed_at        DateTime            @db.Timestamptz(6)
+  created_at          DateTime            @default(now()) @db.Timestamptz(6)
+  github_repositories github_repositories @relation(fields: [repository_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([repository_id, github_sha])
+  @@index([repository_id, committed_at], map: "idx_github_commits_repository_committed")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model github_issues {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  repository_id       String              @db.Uuid
+  task_id             String?             @db.Uuid
+  github_issue_id     BigInt
+  issue_number        Int
+  title               String              @db.VarChar(300)
+  description         String?
+  author_name         String?             @db.VarChar(255)
+  status              String
+  issue_url           String
+  opened_at           DateTime            @db.Timestamptz(6)
+  closed_at           DateTime?           @db.Timestamptz(6)
+  created_at          DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime            @default(now()) @db.Timestamptz(6)
+  github_repositories github_repositories @relation(fields: [repository_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tasks               tasks?              @relation(fields: [task_id], references: [id], onUpdate: NoAction)
+
+  @@unique([repository_id, github_issue_id])
+  @@unique([repository_id, issue_number])
+  @@index([repository_id, updated_at], map: "idx_github_issues_repository_updated")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model github_pull_requests {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  repository_id       String              @db.Uuid
+  task_id             String?             @db.Uuid
+  github_pr_id        BigInt
+  pr_number           Int
+  title               String              @db.VarChar(300)
+  description         String?
+  author_name         String?             @db.VarChar(255)
+  source_branch       String              @db.VarChar(255)
+  target_branch       String              @db.VarChar(255)
+  status              String
+  pr_url              String
+  opened_at           DateTime            @db.Timestamptz(6)
+  closed_at           DateTime?           @db.Timestamptz(6)
+  merged_at           DateTime?           @db.Timestamptz(6)
+  created_at          DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime            @default(now()) @db.Timestamptz(6)
+  github_repositories github_repositories @relation(fields: [repository_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tasks               tasks?              @relation(fields: [task_id], references: [id], onUpdate: NoAction)
+
+  @@unique([repository_id, github_pr_id])
+  @@unique([repository_id, pr_number])
+  @@index([repository_id, updated_at], map: "idx_github_prs_repository_updated")
+}
+
+model github_repositories {
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id            String                  @unique @db.Uuid
+  workspace_id          String                  @db.Uuid
+  github_repo_id        BigInt                  @unique
+  owner_name            String                  @db.VarChar(100)
+  repository_name       String                  @db.VarChar(150)
+  repository_url        String
+  connected_by          String                  @db.Uuid
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime                @default(now()) @db.Timestamptz(6)
+  github_commits        github_commits[]
+  github_issues         github_issues[]
+  github_pull_requests  github_pull_requests[]
+  users                 users                   @relation(fields: [connected_by], references: [id], onUpdate: NoAction)
+  projects              projects                @relation(fields: [project_id, workspace_id], references: [id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+  github_webhook_events github_webhook_events[]
+  @@unique([project_id, workspace_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model github_webhook_events {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  repository_id       String              @db.Uuid
+  github_event_id     String              @db.VarChar(255)
+  event_type          String              @db.VarChar(100)
+  payload             Json
+  processing_status   String              @default("PENDING")
+  error_message       String?
+  received_at         DateTime            @default(now()) @db.Timestamptz(6)
+  processed_at        DateTime?           @db.Timestamptz(6)
+  github_repositories github_repositories @relation(fields: [repository_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([repository_id, github_event_id])
+  @@index([repository_id, received_at], map: "idx_github_webhook_pending", where: raw("(processing_status = 'PENDING'::text)"))
+}
+
+model labels {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id   String        @db.Uuid
+  workspace_id String        @db.Uuid
+  name         String        @db.VarChar(50)
+  color        String?       @db.VarChar(7)
+  created_at   DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime      @default(now()) @db.Timestamptz(6)
+  projects     projects      @relation(fields: [project_id, workspace_id], references: [id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+  task_labels  task_labels[]
+
+  @@unique([project_id, name])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model milestones {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id   String    @db.Uuid
+  workspace_id String    @db.Uuid
+  name         String    @db.VarChar(150)
+  description  String?
+  due_date     DateTime? @db.Date
+  status       String    @default("OPEN")
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  projects     projects  @relation(fields: [project_id, workspace_id], references: [id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+  tasks        tasks[]
+
+  @@unique([project_id, name])
+}
+
+model notifications {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String     @db.Uuid
+  workspace_id String     @db.Uuid
+  type         String     @db.VarChar(50)
+  title        String     @db.VarChar(200)
+  message      String
+  entity_type  String?    @db.VarChar(50)
+  entity_id    String?    @db.Uuid
+  is_read      Boolean    @default(false)
+  created_at   DateTime   @default(now()) @db.Timestamptz(6)
+  users        users      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  workspaces   workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, created_at], map: "idx_notifications_user_created")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model password_reset_tokens {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String    @db.Uuid
+  token_hash String    @unique
+  expires_at DateTime  @db.Timestamptz(6)
+  used_at    DateTime? @db.Timestamptz(6)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  users      users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model project_health_snapshots {
+  id                       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id               String   @db.Uuid
+  workspace_id             String   @db.Uuid
+  health_score             Int
+  completion_rate          Decimal? @db.Decimal(5, 2)
+  overdue_tasks            Int      @default(0)
+  blocked_tasks            Int      @default(0)
+  high_priority_open_tasks Int      @default(0)
+  workload_score           Decimal? @db.Decimal(5, 2)
+  velocity_score           Decimal? @db.Decimal(5, 2)
+  risk_summary             Json?
+  calculated_at            DateTime @default(now()) @db.Timestamptz(6)
+  projects                 projects @relation(fields: [project_id, workspace_id], references: [id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([project_id, calculated_at], map: "idx_health_snapshots_project_calculated")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model project_members {
+  project_id        String            @db.Uuid
+  user_id           String            @db.Uuid
+  workspace_id      String            @db.Uuid
+  role              String            @default("VIEWER")
+  joined_at         DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime          @default(now()) @db.Timestamptz(6)
+  projects          projects          @relation(fields: [project_id, workspace_id], references: [id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+  workspace_members workspace_members @relation(fields: [user_id, workspace_id], references: [user_id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([project_id, user_id])
+  @@index([user_id], map: "idx_project_members_user_id")
+}
+
+model project_statuses {
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id          String                @db.Uuid
+  name                String                @db.VarChar(50)
+  position            Int
+  color               String?               @db.VarChar(7)
+  is_completed        Boolean               @default(false)
+  created_at          DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime              @default(now()) @db.Timestamptz(6)
+  projects            projects              @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  task_status_history task_status_history[]
+  tasks               tasks[]
+
+  @@unique([project_id, position])
+}
+
+model project_teams {
+  project_id   String   @db.Uuid
+  team_id      String   @db.Uuid
+  workspace_id String   @db.Uuid
+  added_by     String   @db.Uuid
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  users        users    @relation(fields: [added_by], references: [id], onUpdate: NoAction)
+  projects     projects @relation(fields: [project_id, workspace_id], references: [id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+  teams        teams    @relation(fields: [team_id, workspace_id], references: [id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([project_id, team_id])
+  @@index([team_id], map: "idx_project_teams_team_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model projects {
+  id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspace_id             String                     @db.Uuid
+  name                     String                     @db.VarChar(150)
+  key                      String                     @unique @db.VarChar(30)
+  description              String?
+  start_date               DateTime?                  @db.Date
+  due_date                 DateTime?                  @db.Date
+  created_at               DateTime                   @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime                   @default(now()) @db.Timestamptz(6)
+  activity_logs            activity_logs[]
+  ai_conversations         ai_conversations[]
+  automations              automations[]
+  calendar_events          calendar_events[]
+  github_repositories      github_repositories?
+  labels                   labels[]
+  milestones               milestones[]
+  project_health_snapshots project_health_snapshots[]
+  project_members          project_members[]
+  project_statuses         project_statuses[]
+  project_teams            project_teams[]
+  workspaces               workspaces                 @relation(fields: [workspace_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  sprints sprints[]
+  tasks                    tasks[]
+  workspace_invitations    workspace_invitations[]
+
+  @@unique([id, workspace_id], map: "projects_id_workspace_unique")
+  @@index([workspace_id], map: "idx_projects_workspace_id")
+}
+
+model security_audit_logs {
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspace_id String?     @db.Uuid
+  user_id      String?     @db.Uuid
+  action       String      @db.VarChar(100)
+  ip_address   String?     @db.Inet
+  user_agent   String?
+  metadata     Json?
+  created_at   DateTime    @default(now()) @db.Timestamptz(6)
+  users        users?      @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  workspaces   workspaces? @relation(fields: [workspace_id], references: [id], onUpdate: NoAction)
+
+  @@index([workspace_id, created_at], map: "idx_security_audit_workspace_created")
+}
+
+model skills {
+  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspace_id            String                    @db.Uuid
+  name                    String                    @db.VarChar(100)
+  created_at              DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime                  @default(now()) @db.Timestamptz(6)
+  workspaces              workspaces                @relation(fields: [workspace_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  task_skill_requirements task_skill_requirements[]
+  team_member_skills      team_member_skills[]
+
+  @@unique([workspace_id, name])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model sprints {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id String @db.Uuid
+  workspace_id String   @db.Uuid
+  name         String   @db.VarChar(100)
+  goal         String?
+  start_date   DateTime @db.Date
+  end_date     DateTime @db.Date
+  status       String   @default("PLANNED")
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+  projects     projects @relation(fields: [project_id, workspace_id], references: [id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+  tasks        tasks[]
+
+  @@unique([project_id, name])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model task_attachments {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  task_id     String   @db.Uuid
+  uploaded_by String   @db.Uuid
+  file_name   String   @db.VarChar(255)
+  storage_key String
+  mime_type   String?  @db.VarChar(100)
+  file_size   BigInt?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  tasks       tasks    @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users       users    @relation(fields: [uploaded_by], references: [id], onUpdate: NoAction)
+
+  @@index([task_id], map: "idx_task_attachments_task_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model task_comments {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  task_id    String   @db.Uuid
+  user_id    String   @db.Uuid
+  content    String
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  tasks      tasks    @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users      users    @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@index([task_id, created_at], map: "idx_task_comments_task_created")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model task_dependencies {
+  task_id                                           String   @db.Uuid
+  depends_on_task_id                                String   @db.Uuid
+  created_at                                        DateTime @default(now()) @db.Timestamptz(6)
+  tasks_task_dependencies_depends_on_task_idTotasks tasks    @relation("task_dependencies_depends_on_task_idTotasks", fields: [depends_on_task_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tasks_task_dependencies_task_idTotasks            tasks    @relation("task_dependencies_task_idTotasks", fields: [task_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([task_id, depends_on_task_id])
+  @@index([depends_on_task_id], map: "idx_task_dependencies_depends_on")
+}
+
+model task_labels {
+  task_id    String   @db.Uuid
+  label_id   String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  labels     labels   @relation(fields: [label_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tasks      tasks    @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([task_id, label_id])
+  @@index([label_id], map: "idx_task_labels_label_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model task_skill_requirements {
+  task_id              String   @db.Uuid
+  skill_id             String   @db.Uuid
+  required_proficiency String   @default("BEGINNER")
+  created_at           DateTime @default(now()) @db.Timestamptz(6)
+  skills               skills   @relation(fields: [skill_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tasks                tasks    @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([task_id, skill_id])
+  @@index([skill_id], map: "idx_task_skill_requirements_skill_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model task_status_history {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  task_id          String           @db.Uuid
+  status_id        String           @db.Uuid
+  changed_by       String?          @db.Uuid
+  started_at       DateTime         @default(now()) @db.Timestamptz(6)
+  ended_at         DateTime?        @db.Timestamptz(6)
+  users            users?           @relation(fields: [changed_by], references: [id], onUpdate: NoAction)
+  project_statuses project_statuses @relation(fields: [status_id], references: [id], onUpdate: NoAction)
+  tasks            tasks            @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([task_id, started_at], map: "idx_task_status_history_task_started")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model task_time_entries {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  task_id     String    @db.Uuid
+  user_id     String    @db.Uuid
+  started_at  DateTime  @db.Timestamptz(6)
+  ended_at    DateTime? @db.Timestamptz(6)
+  description String?
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  tasks       tasks     @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users       users     @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@index([task_id], map: "idx_task_time_entries_task_id")
+}
+
+model task_watchers {
+  task_id    String   @db.Uuid
+  user_id    String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  tasks      tasks    @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([task_id, user_id])
+  @@index([user_id], map: "idx_task_watchers_user_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tasks {
+  id                                                            String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id                                                    String                    @db.Uuid
+  workspace_id                                                  String                    @db.Uuid
+  status_id                                                     String                    @db.Uuid
+  parent_task_id                                                String?                   @db.Uuid
+  task_number                                                   Int
+  title                                                         String                    @db.VarChar(200)
+  description                                                   String?
+  priority                                                      String                    @default("MEDIUM")
+  assigned_to                                                   String?                   @db.Uuid
+  created_by                                                    String                    @db.Uuid
+  due_date                                                      DateTime?                 @db.Date
+  created_at                                                    DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at                                                    DateTime                  @default(now()) @db.Timestamptz(6)
+  sprint_id                                                     String?                   @db.Uuid
+  position                                                      Int                       @default(0)
+  milestone_id                                                  String?                   @db.Uuid
+  story_points                                                  Int?
+  github_issues                                                 github_issues[]
+  github_pull_requests                                          github_pull_requests[]
+  task_attachments                                              task_attachments[]
+  task_comments                                                 task_comments[]
+  task_dependencies_task_dependencies_depends_on_task_idTotasks task_dependencies[]       @relation("task_dependencies_depends_on_task_idTotasks")
+  task_dependencies_task_dependencies_task_idTotasks            task_dependencies[]       @relation("task_dependencies_task_idTotasks")
+  task_labels                                                   task_labels[]
+  task_skill_requirements                                       task_skill_requirements[]
+  task_status_history                                           task_status_history[]
+  task_time_entries                                             task_time_entries[]
+  task_watchers                                                 task_watchers[]
+  users_tasks_assigned_toTousers                                users?                    @relation("tasks_assigned_toTousers", fields: [assigned_to], references: [id], onUpdate: NoAction)
+  users_tasks_created_byTousers                                 users                     @relation("tasks_created_byTousers", fields: [created_by], references: [id], onUpdate: NoAction)
+  milestones                                                    milestones?               @relation(fields: [milestone_id], references: [id], onUpdate: NoAction, map: "tasks_milestone_fk")
+  tasks                                                         tasks?                    @relation("tasksTotasks", fields: [parent_task_id], references: [id], onUpdate: NoAction)
+  other_tasks                                                   tasks[]                   @relation("tasksTotasks")
+  projects                                                      projects                  @relation(fields: [project_id, workspace_id], references: [id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+  sprints                                                       sprints?                  @relation(fields: [sprint_id], references: [id], onUpdate: NoAction, map: "tasks_sprint_fk")
+  project_statuses                                              project_statuses          @relation(fields: [status_id], references: [id], onUpdate: NoAction)
+
+  @@unique([project_id, task_number])
+  @@index([assigned_to], map: "idx_tasks_assigned_to")
+  @@index([project_id, position], map: "idx_tasks_project_position")
+  @@index([project_id, status_id], map: "idx_tasks_project_status")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model team_member_availability {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id           String            @db.Uuid
+  team_id           String            @db.Uuid
+  workspace_id      String            @db.Uuid
+  availability_date DateTime          @db.Date
+  available_hours   Decimal           @default(0) @db.Decimal(5, 2)
+  reason            String?           @db.VarChar(200)
+  created_at        DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime          @default(now()) @db.Timestamptz(6)
+  teams             teams             @relation(fields: [team_id, workspace_id], references: [id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+  team_members      team_members      @relation(fields: [user_id, team_id], references: [user_id, team_id], onDelete: Cascade, onUpdate: NoAction)
+  workspace_members workspace_members @relation(fields: [user_id, workspace_id], references: [user_id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, team_id, availability_date])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model team_member_capacity {
+  user_id           String            @db.Uuid
+  team_id           String            @db.Uuid
+  workspace_id      String            @db.Uuid
+  hours_per_week    Decimal           @db.Decimal(5, 2)
+  effective_from    DateTime          @default(dbgenerated("CURRENT_DATE")) @db.Date
+  effective_until   DateTime?         @db.Date
+  created_at        DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime          @default(now()) @db.Timestamptz(6)
+  teams             teams             @relation(fields: [team_id, workspace_id], references: [id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+  team_members      team_members      @relation(fields: [user_id, team_id], references: [user_id, team_id], onDelete: Cascade, onUpdate: NoAction)
+  workspace_members workspace_members @relation(fields: [user_id, workspace_id], references: [user_id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, team_id, effective_from])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model team_member_skills {
+  user_id           String            @db.Uuid
+  team_id           String            @db.Uuid
+  workspace_id      String            @db.Uuid
+  skill_id          String            @db.Uuid
+  proficiency       String            @default("BEGINNER")
+  created_at        DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime          @default(now()) @db.Timestamptz(6)
+  skills            skills            @relation(fields: [skill_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  teams             teams             @relation(fields: [team_id, workspace_id], references: [id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+  team_members      team_members      @relation(fields: [user_id, team_id], references: [user_id, team_id], onDelete: Cascade, onUpdate: NoAction)
+  workspace_members workspace_members @relation(fields: [user_id, workspace_id], references: [user_id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, team_id, skill_id])
+  @@index([skill_id], map: "idx_team_member_skills_skill_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model team_members {
+  user_id                  String                     @db.Uuid
+  team_id                  String                     @db.Uuid
+  workspace_id             String                     @db.Uuid
+  role                     String                     @default("VIEWER")
+  joined_at                DateTime                   @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime                   @default(now()) @db.Timestamptz(6)
+  team_member_availability team_member_availability[]
+  team_member_capacity     team_member_capacity[]
+  team_member_skills       team_member_skills[]
+  teams                    teams                      @relation(fields: [team_id, workspace_id], references: [id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+  workspace_members        workspace_members          @relation(fields: [user_id, workspace_id], references: [user_id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, team_id])
+  @@index([team_id], map: "idx_team_members_team_id")
+}
+
+model teams {
+  id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspace_id             String                     @db.Uuid
+  name                     String                     @db.VarChar(100)
+  created_at               DateTime                   @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime                   @default(now()) @db.Timestamptz(6)
+  project_teams            project_teams[]
+  team_member_availability team_member_availability[]
+  team_member_capacity     team_member_capacity[]
+  team_member_skills       team_member_skills[]
+  team_members             team_members[]
+  workspaces               workspaces                 @relation(fields: [workspace_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([id, workspace_id], map: "teams_id_workspace_unique")
+  @@index([workspace_id], map: "idx_teams_workspace_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model user_sessions {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id            String    @db.Uuid
+  refresh_token_hash String
+  user_agent         String?
+  ip_address         String?   @db.Inet
+  expires_at         DateTime  @db.Timestamptz(6)
+  revoked_at         DateTime? @db.Timestamptz(6)
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  users              users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id], map: "idx_user_sessions_user_id")
+}
+
+model users {
+  id                             String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                           String                  @db.VarChar(100)
+  email                          String                  @unique @db.VarChar(255)
+  password_hash                  String
+  created_at                     DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at                     DateTime                @default(now()) @db.Timestamptz(6)
+  activity_logs                  activity_logs[]
+  ai_conversations               ai_conversations[]
+  automations                    automations[]
+  calendar_events                calendar_events[]
+  event_participants             event_participants[]
+  github_repositories            github_repositories[]
+  notifications                  notifications[]
+  password_reset_tokens          password_reset_tokens[]
+  project_teams                  project_teams[]
+  security_audit_logs            security_audit_logs[]
+  task_attachments               task_attachments[]
+  task_comments                  task_comments[]
+  task_status_history            task_status_history[]
+  task_time_entries              task_time_entries[]
+  task_watchers                  task_watchers[]
+  tasks_tasks_assigned_toTousers tasks[]                 @relation("tasks_assigned_toTousers")
+  tasks_tasks_created_byTousers  tasks[]                 @relation("tasks_created_byTousers")
+  user_sessions                  user_sessions[]
+  workspace_invitations          workspace_invitations[]
+  workspace_members              workspace_members[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model workspace_invitations {
+  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspace_id  String     @db.Uuid
+  project_id    String?    @db.Uuid
+  invited_email String     @db.VarChar(255)
+  invited_by    String     @db.Uuid
+  role          String     @default("VIEWER")
+  token_hash    String     @unique
+  expires_at    DateTime   @db.Timestamptz(6)
+  accepted_at   DateTime?  @db.Timestamptz(6)
+  revoked_at    DateTime?  @db.Timestamptz(6)
+  created_at    DateTime   @default(now()) @db.Timestamptz(6)
+  users         users      @relation(fields: [invited_by], references: [id], onUpdate: NoAction)
+  projects      projects?  @relation(fields: [project_id, workspace_id], references: [id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+  workspaces    workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model workspace_members {
+  user_id                  String                     @db.Uuid
+  workspace_id             String                     @db.Uuid
+  role                     String                     @default("VIEWER")
+  joined_at                DateTime                   @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime                   @default(now()) @db.Timestamptz(6)
+  project_members          project_members[]
+  team_member_availability team_member_availability[]
+  team_member_capacity     team_member_capacity[]
+  team_member_skills       team_member_skills[]
+  team_members             team_members[]
+  users                    users                      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  workspaces               workspaces                 @relation(fields: [workspace_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, workspace_id])
+  @@index([workspace_id], map: "idx_workspace_members_workspace_id")
+}
+
+model workspaces {
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                  String                  @db.VarChar(100)
+  slug                  String                  @unique @db.VarChar(100)
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime                @default(now()) @db.Timestamptz(6)
+  activity_logs         activity_logs[]
+  calendar_events       calendar_events[]
+  notifications         notifications[]
+  projects              projects[]
+  security_audit_logs   security_audit_logs[]
+  skills                skills[]
+  teams                 teams[]
+  workspace_invitations workspace_invitations[]
+  workspace_members     workspace_members[]
+}
