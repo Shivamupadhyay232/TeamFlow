@@ -1,15 +1,18 @@
+import { registerSchema } from '../validators/auth.validator.js'
 import { registerService } from '../services/auth.service.js'
 
-const registerController = async (req, res) => {
-  const { name, email, password } = req.body
+const registerController = async (req, res, next) => {
+  try {
+    const validatedData = registerSchema.parse(req.body)
 
-  const result = await registerService(
-    name, 
-    email, 
-    password
-  )
+    const { name, email, password } = validatedData
 
-  res.status(201).json(result)
+    const result = await registerService(name, email, password)
+
+    res.status(201).json(result)
+  } catch (error) {
+    next(error)
+  }
 }
 
 export { registerController }
