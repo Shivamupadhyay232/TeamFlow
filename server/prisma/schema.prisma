@@ -236,9 +236,8 @@ model github_repositories {
   github_issues         github_issues[]
   github_pull_requests  github_pull_requests[]
   users                 users                   @relation(fields: [connected_by], references: [id], onUpdate: NoAction)
-  projects              projects                @relation(fields: [project_id, workspace_id], references: [id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
+  projects projects @relation(fields: [project_id, workspace_id], references: [id, workspace_id], onDelete: Cascade, onUpdate: NoAction)
   github_webhook_events github_webhook_events[]
-  @@unique([project_id, workspace_id])
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -396,7 +395,7 @@ model projects {
   ai_conversations         ai_conversations[]
   automations              automations[]
   calendar_events          calendar_events[]
-  github_repositories      github_repositories?
+  github_repositories      github_repositories[]
   labels                   labels[]
   milestones               milestones[]
   project_health_snapshots project_health_snapshots[]
@@ -404,7 +403,7 @@ model projects {
   project_statuses         project_statuses[]
   project_teams            project_teams[]
   workspaces               workspaces                 @relation(fields: [workspace_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  sprints sprints[]
+  sprints                  sprints[]
   tasks                    tasks[]
   workspace_invitations    workspace_invitations[]
 
@@ -443,7 +442,7 @@ model skills {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model sprints {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  project_id String @db.Uuid
+  project_id   String   @unique(map: "idx_sprints_one_active_per_project", where: raw("(status = 'ACTIVE'::text)")) @db.Uuid
   workspace_id String   @db.Uuid
   name         String   @db.VarChar(100)
   goal         String?
@@ -717,6 +716,7 @@ model user_sessions {
 model users {
   id                             String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                           String                  @db.VarChar(100)
+  username                       String?                 @unique @db.VarChar(50)
   email                          String                  @unique @db.VarChar(255)
   password_hash                  String
   created_at                     DateTime                @default(now()) @db.Timestamptz(6)

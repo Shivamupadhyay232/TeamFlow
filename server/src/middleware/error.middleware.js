@@ -3,7 +3,7 @@ const errorMiddleware = (error, req, res, next) => {
 
   if (error.code === 'P2002') {
     return res.status(409).json({
-      message: 'Email is already registered',
+      message: 'A unique field already exists',
     })
   }
 
@@ -11,6 +11,12 @@ const errorMiddleware = (error, req, res, next) => {
     return res.status(400).json({
       message: 'Validation failed',
       errors: error.issues.map((issue) => issue.message),
+    })
+  }
+
+  if (error.statusCode) {
+    return res.status(error.statusCode).json({
+      message: error.message,
     })
   }
 

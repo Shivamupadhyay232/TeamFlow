@@ -6,3 +6,7 @@ dist/
 build/
 coverage/
 .DS_Store
+server/.agents/
+server/.claude/
+server/.cursor/
+server/.devin/

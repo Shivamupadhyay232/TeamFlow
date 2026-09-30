@@ -5,9 +5,9 @@ const registerController = async (req, res, next) => {
   try {
     const validatedData = registerSchema.parse(req.body)
 
-    const { name, email, password } = validatedData
+    const { name, username, email, password } = validatedData
 
-    const result = await registerService(name, email, password)
+    const result = await registerService(name, username, email, password)
 
     res.status(201).json(result)
   } catch (error) {
