@@ -1,6 +1,7 @@
 import bcrypt from 'bcrypt'
-
 import prisma from '../db/prisma.js'
+import {generateAccessToken} from '../utils/jwt.js'
+import { createSession } from './session.service.js'
 
 const registerService = async (name, username, email, password) => {
   const existingEmail = await prisma.users.findUnique({
@@ -46,5 +47,43 @@ const registerService = async (name, username, email, password) => {
     message: 'User registered successfully',
   }
 }
+const loginService = async (identifier, password, userAgent, ipAddress) => {
+  const isEmail = identifier.includes('@')
 
-export { registerService }
+  const user = await prisma.users.findFirst({
+    where: isEmail
+      ? { email: identifier }
+      : { username: identifier },
+  })
+
+  if (!user) {
+    const error = new Error('Invalid credentials')
+    error.statusCode = 401
+    throw error
+  }
+
+  const isPasswordValid = await bcrypt.compare(
+    password,
+    user.password_hash,
+  )
+
+  if (!isPasswordValid) {
+    const error = new Error('Invalid credentials')
+    error.statusCode = 401
+    throw error
+  }
+  const accessToken = generateAccessToken(user.id)
+  const refreshToken = await createSession(user.id,userAgent,ipAddress)
+  return {
+  accessToken,
+  refreshToken,
+  user: {
+    id: user.id,
+    name: user.name,
+    username: user.username,
+    email: user.email,
+  },
+}
+}
+
+export { registerService,loginService}

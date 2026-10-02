@@ -21,5 +21,15 @@ const registerSchema = z.object({
     .string()
     .min(6, 'Password must be at least 6 characters'),
 })
+ const loginSchema = z.object({
+  identifier: z
+    .string()
+    .trim()
+    .min(1, 'Email or username is required'),
 
-export { registerSchema }
+  password: z
+    .string()
+    .min(1, 'Password is required'),
+})
+
+export { registerSchema,loginSchema}
