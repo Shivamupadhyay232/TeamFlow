@@ -14,7 +14,6 @@ const googleAuthController = (req, res, next) => {
 }
 
 const googleCallbackController = async (req, res, next) => {
-
   try {
     const { code, error: googleError } = req.query
 
@@ -39,10 +38,16 @@ const googleCallbackController = async (req, res, next) => {
       ipAddress,
     )
 
+    res.cookie('refreshToken', result.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    })
+
     return res.status(200).json({
       message: 'Google login successful',
       accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
       user: result.user,
     })
   } catch (error) {
@@ -73,13 +78,24 @@ const loginController = async (req, res, next) => {
     const userAgent = req.get('user-agent')
     const ipAddress = req.ip
 
-    const result = await loginService(identifier,password,userAgent,ipAddress)
+    const result = await loginService(
+      identifier,
+      password,
+      userAgent,
+      ipAddress,
+    )
+
+    res.cookie('refreshToken', result.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    })
 
     res.status(200).json({
-    message: 'Login successful',
-    accessToken: result.accessToken,
-    refreshToken: result.refreshToken,
-    user: result.user,
+      message: 'Login successful',
+      accessToken: result.accessToken,
+      user: result.user,
     })
   } catch (error) {
     next(error)
@@ -88,19 +104,25 @@ const loginController = async (req, res, next) => {
 
 const refreshController = async (req, res, next) => {
   try {
-    const { refreshToken } = req.body
+    const refreshToken = req.cookies.refreshToken
 
     if (!refreshToken) {
-      return res.status(400).json({
+      return res.status(401).json({
         message: 'Refresh token is required',
       })
     }
 
     const result = await refreshAccessToken(refreshToken)
 
+    res.cookie('refreshToken', result.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    })
+
     res.status(200).json({
-      accessToken:result.accessToken,
-      refreshToken: result.refreshToken,
+      accessToken: result.accessToken,
     })
   } catch (error) {
     next(error)
@@ -109,15 +131,21 @@ const refreshController = async (req, res, next) => {
 
 const logoutController = async (req, res, next) => {
   try {
-    const { refreshToken } = req.body
+    const refreshToken = req.cookies.refreshToken
 
     if (!refreshToken) {
-      return res.status(400).json({
+      return res.status(401).json({
         message: 'Refresh token is required',
       })
     }
 
     await logoutService(refreshToken)
+
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    })
 
     res.status(200).json({
       message: 'Logout successful',
