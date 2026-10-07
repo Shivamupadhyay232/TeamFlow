@@ -50,11 +50,51 @@ const findValidSession = async (refreshToken) => {
 
   return session
 }
+const revokeSession = async (sessionId) => {
+  await prisma.user_sessions.update({
+    where: {
+      id: sessionId,
+    },
+    data: {
+      revoked_at: new Date(),
+    },
+  })
+}
+const logoutService = async (refreshToken) => {
+  const refreshTokenHash = hashRefreshToken(refreshToken)
+
+  const session = await prisma.user_sessions.findFirst({
+    where: {
+      refresh_token_hash: refreshTokenHash,
+    },
+  })
+
+  if (!session) {
+    return
+  }
+
+  if (session.revoked_at) {
+    return
+  }
+
+  await revokeSession(session.id)
+}
 const refreshAccessToken = async (refreshToken) => {
   const session = await findValidSession(refreshToken)
 
+  await revokeSession(session.id)
+
+  const newRefreshToken = await createSession(
+    session.user_id,
+    session.user_agent,
+    session.ip_address,
+  )
+
   const accessToken = generateAccessToken(session.user_id)
 
-  return accessToken
+  return {
+    accessToken,
+    refreshToken: newRefreshToken,
+  }
 }
-export { createSession , findValidSession , refreshAccessToken }
+export { createSession , findValidSession , refreshAccessToken , revokeSession,logoutService}

@@ -718,7 +718,7 @@ model users {
   name                           String                  @db.VarChar(100)
   username                       String?                 @unique @db.VarChar(50)
   email                          String                  @unique @db.VarChar(255)
-  password_hash                  String
+  password_hash                  String?
   created_at                     DateTime                @default(now()) @db.Timestamptz(6)
   updated_at                     DateTime                @default(now()) @db.Timestamptz(6)
   activity_logs                  activity_logs[]
@@ -728,6 +728,7 @@ model users {
   event_participants             event_participants[]
   github_repositories            github_repositories[]
   notifications                  notifications[]
+  oauth_accounts                 oauth_accounts[]
   password_reset_tokens          password_reset_tokens[]
   project_teams                  project_teams[]
   security_audit_logs            security_audit_logs[]
@@ -741,6 +742,20 @@ model users {
   user_sessions                  user_sessions[]
   workspace_invitations          workspace_invitations[]
   workspace_members              workspace_members[]
+}
+
+model oauth_accounts {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id             String   @db.Uuid
+  provider            String   @db.VarChar(50)
+  provider_account_id String   @db.VarChar(255)
+  created_at          DateTime @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime @default(now()) @db.Timestamptz(6)
+
+  users               users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([provider, provider_account_id])
+  @@index([user_id])
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.

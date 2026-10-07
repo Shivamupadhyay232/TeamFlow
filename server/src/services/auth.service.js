@@ -61,7 +61,13 @@ const loginService = async (identifier, password, userAgent, ipAddress) => {
     error.statusCode = 401
     throw error
   }
-
+  if (!user.password_hash) {
+  const error = new Error(
+    'This account uses Google login. Please continue with Google.',
+  )
+  error.statusCode = 400
+  throw error
+}
   const isPasswordValid = await bcrypt.compare(
     password,
     user.password_hash,
